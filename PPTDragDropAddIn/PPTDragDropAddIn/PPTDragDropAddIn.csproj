@@ -34,7 +34,7 @@
     <PublishUrl>C:\Users\tokuy\OneDrive\ドキュメント\GitHub\OfficeWork\</PublishUrl>
     <InstallUrl />
     <TargetCulture>ja</TargetCulture>
-    <ApplicationVersion>1.0.0.4</ApplicationVersion>
+    <ApplicationVersion>1.0.0.6</ApplicationVersion>
     <AutoIncrementApplicationRevision>true</AutoIncrementApplicationRevision>
     <UpdateEnabled>true</UpdateEnabled>
     <UpdateInterval>7</UpdateInterval>
@@ -210,6 +210,7 @@
   -->
   <ItemGroup>
     <Compile Include="DragDropRibbon.cs" />
+    <Compile Include="GestureBlocker.cs" />
     <Compile Include="MouseHook.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>

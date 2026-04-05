@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 
 namespace PPTDragDropAddIn
 {
@@ -17,6 +19,21 @@ namespace PPTDragDropAddIn
 
         // 描画時にパレット上のマウスイベントを除外するために使用
         public PenPaletteWindow AssociatedPalette { get; set; }
+
+        /// <summary>
+        /// TouchGuard の矩形がタッチダウンされたときに発火するイベント。
+        /// 引数はスクリーン座標 (X, Y)。
+        /// </summary>
+        public event EventHandler<Point> TouchGuardTouched;
+        /// <summary>タッチドラッグ中の移動（スクリーン座標）</summary>
+        public event EventHandler<Point> TouchDragged;
+        /// <summary>タッチドラッグ終了（スクリーン座標）</summary>
+        public event EventHandler<Point> TouchDragEnded;
+
+        public Action ImmediateBlockAction { get; set; }
+
+        // タッチドラッグ中かどうか（TouchMove/TouchUp の処理対象を絞る）
+        internal bool IsDraggingViaTouch = false;
 
         private const int WM_NCHITTEST = 0x0084;
         private const int HTTRANSPARENT = -1;
@@ -93,12 +110,25 @@ namespace PPTDragDropAddIn
             Canvas.SetLeft(DragImage, pixelX / _dpiScale);
             Canvas.SetTop(DragImage, pixelY / _dpiScale);
             DragImage.Visibility = Visibility.Visible;
+
+            // ドラッグ中はウィンドウ全体を alpha=1 にしてタッチ/ジェスチャーを吸収し
+            // PowerPoint のスワイプによるスライド遷移を防ぐ
+            RootGrid.Background = NearlyTransparentBrush;
+
+            // TouchGuardCanvas は HitTest を無効化するだけにとどめる。
+            // Clear() は呼ばない。タッチイベントを処理中の矩形要素を visual tree から削除すると
+            // WPF のタッチルーティングが壊れてフリーズするため。
+            TouchGuardCanvas.IsHitTestVisible = false;
         }
 
         public void HideSnapshot()
         {
             DragImage.Visibility = Visibility.Collapsed;
             DragImage.Source = null;
+
+            // ドラッグ終了 → タッチを通過させる（click-through に戻す）
+            RootGrid.Background = Brushes.Transparent;
+            TouchGuardCanvas.IsHitTestVisible = true;
         }
 
         public void UpdatePosition(double pixelX, double pixelY)
@@ -107,12 +137,92 @@ namespace PPTDragDropAddIn
             Canvas.SetTop(DragImage, pixelY / _dpiScale);
         }
 
+        /// <summary>
+        /// Drag_ 図形のウィンドウ内ピクセル座標矩形リストを受け取り、
+        /// TouchGuardCanvas 上にタッチ吸収用の矩形を配置する。
+        /// これにより、タッチダウンの最初のイベントがオーバーレイで捕捉され、
+        /// PowerPoint の Direct Manipulation（スワイプでスライド遷移）が発動しない。
+        /// </summary>
+        public void UpdateTouchGuardRects(List<Rect> rects)
+        {
+            TouchGuardCanvas.Children.Clear();
+            if (_isInDrawMode) return; // 描画モード中はガード不要
+
+            foreach (var r in rects)
+            {
+                var rect = new Rectangle
+                {
+                    Width = r.Width / _dpiScale,
+                    Height = r.Height / _dpiScale,
+                    // alpha=1: 人間にはほぼ見えないが、OS のヒットテストで不透明と判定される
+                    Fill = NearlyTransparentBrush,
+                    IsHitTestVisible = true,
+                };
+                Canvas.SetLeft(rect, r.X / _dpiScale);
+                Canvas.SetTop(rect, r.Y / _dpiScale);
+
+                // タッチ・スタイラスイベントを捕捉
+                rect.TouchDown += TouchGuardRect_TouchDown;
+
+                TouchGuardCanvas.Children.Add(rect);
+            }
+        }
+
+        /// <summary>
+        /// TouchGuard 矩形を全て削除する。
+        /// </summary>
+        public void ClearTouchGuardRects()
+        {
+            TouchGuardCanvas.Children.Clear();
+        }
+
+        private void TouchGuardRect_TouchDown(object sender, TouchEventArgs e)
+        {
+            // ① ジェスチャーブロッカーを即座に有効化
+            ImmediateBlockAction?.Invoke();
+
+            // ② shape.Export（重いCOM処理）より先にオーバーレイを不透明化する。
+            RootGrid.Background = NearlyTransparentBrush;
+            TouchGuardCanvas.IsHitTestVisible = false;
+
+            // ③ キャプチャを解放する。
+            //    RootGrid.CaptureTouch() は TouchDown 処理中の StylusInput スレッドへ
+            //    「キャプチャ先変更」の通知を送るため、UI スレッドと互いに待ち合い
+            //    デッドロックする。キャプチャしなくても、背景が NearlyTransparentBrush に
+            //    なった後は OS のヒットテストで WM_POINTER が RootGrid へルーティングされる。
+            e.TouchDevice.Capture(null);
+
+            IsDraggingViaTouch = true;
+
+            var pos = e.GetTouchPoint(null).Position;
+            var screenPos = PointToScreen(pos);
+            TouchGuardTouched?.Invoke(this, screenPos);
+        }
+
+        private void RootGrid_TouchMove(object sender, TouchEventArgs e)
+        {
+            if (!IsDraggingViaTouch) return;
+            e.Handled = true;
+            var pos = e.GetTouchPoint(null).Position;
+            TouchDragged?.Invoke(this, PointToScreen(pos));
+        }
+
+        private void RootGrid_TouchUp(object sender, TouchEventArgs e)
+        {
+            if (!IsDraggingViaTouch) return;
+            e.Handled = true;
+            IsDraggingViaTouch = false;
+            RootGrid.ReleaseTouchCapture(e.TouchDevice);
+            var pos = e.GetTouchPoint(null).Position;
+            TouchDragEnded?.Invoke(this, PointToScreen(pos));
+        }
+
         // AllowsTransparency=True のレイヤードウィンドウでは alpha=0 ピクセルが OS レベルで
         // click-through になるため、描画モード時は alpha=1 の背景を設定してイベントを受け取る
         private static readonly SolidColorBrush NearlyTransparentBrush =
             new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
 
-        public void SetPenMode(Color color, double thickness = 3.0)
+        public void SetPenMode(Color color, double thickness = 3.0, bool isHighlighter = false)
         {
             _isInDrawMode = true;
             DrawingCanvas.DefaultDrawingAttributes = new DrawingAttributes
@@ -121,7 +231,7 @@ namespace PPTDragDropAddIn
                 Width = thickness,
                 Height = thickness,
                 FitToCurve = true,
-                IsHighlighter = false,
+                IsHighlighter = isHighlighter,
             };
             DrawingCanvas.EditingMode = InkCanvasEditingMode.Ink;
             DrawingCanvas.Background = NearlyTransparentBrush;
@@ -142,6 +252,7 @@ namespace PPTDragDropAddIn
             DrawingCanvas.EditingMode = InkCanvasEditingMode.None;
             DrawingCanvas.Background = Brushes.Transparent;
             DrawingCanvas.IsHitTestVisible = false;
+            RootGrid.Background = Brushes.Transparent; // ドラッグ/描画モードの残留をリセット
         }
 
         public void ClearDrawing()

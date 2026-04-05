@@ -64,18 +64,23 @@ namespace PPTDragDropAddIn
 
                 if (message == WM_LBUTTONDOWN)
                 {
+                    bool wasDragging = IsDragging;
                     MouseDown?.Invoke(this, e);
-                    // ドラッグが開始された場合、このイベントをOSに流さないようにすることも検討できますが、
-                    // ここではイベントを通知した上で、IsDraggingの状態によって後のUpを制御します。
+                    // ドラッグが開始された瞬間のみDownを遮断する。
+                    // これにより PowerPoint がマウスキャプチャを取得しなくなり、
+                    // ドラッグ終了後のクリックがパレット等に正しくルーティングされる。
+                    if (!wasDragging && IsDragging)
+                    {
+                        return (IntPtr)1; // ドラッグ開始クリックを遮断
+                    }
                 }
                 else if (message == WM_LBUTTONUP)
                 {
                     MouseUp?.Invoke(this, e);
-                    // ドラッグ中だった場合、このマウスアップをフックして遮断することで、
-                    // PowerPoint側に「クリック」として認識されるのを防ぎ、スライド遷移を抑制します。
+                    // ドラッグ中はUpも遮断してスライド遷移を防ぐ
                     if (IsDragging)
                     {
-                        return (IntPtr)1; // イベントを消費（遮断）
+                        return (IntPtr)1;
                     }
                 }
                 else if (message == WM_MOUSEMOVE)

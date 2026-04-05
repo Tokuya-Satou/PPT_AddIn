@@ -9,7 +9,9 @@
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         Left="0" Top="0">
-    <Grid>
+    <Grid x:Name="RootGrid" TouchMove="RootGrid_TouchMove" TouchUp="RootGrid_TouchUp">
+        <!-- タッチ吸収レイヤー: Drag_ 図形の領域にタッチ不透明な矩形を配置 -->
+        <Canvas x:Name="TouchGuardCanvas" IsHitTestVisible="True" Background="Transparent"/>
         <Canvas x:Name="OverlayCanvas">
             <Image x:Name="DragImage" Visibility="Collapsed" Stretch="Fill" />
         </Canvas>

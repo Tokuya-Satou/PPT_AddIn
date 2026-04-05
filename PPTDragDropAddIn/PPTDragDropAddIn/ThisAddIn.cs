@@ -21,11 +21,29 @@ namespace PPTDragDropAddIn
         private OverlayWindow _overlayWindow;
         private PenPaletteWindow _penPaletteWindow;
         private bool _isDrawModeActive = false;
+        private GestureBlocker _gestureBlocker;
 
         // スライドごとの描画データを保持
         private Dictionary<int, System.Windows.Ink.StrokeCollection> _slideStrokes
             = new Dictionary<int, System.Windows.Ink.StrokeCollection>();
         private int _currentSlideIndex = -1;
+
+        // Drag_ 図形のスクリーン座標矩形（WH_GETMESSAGE スレッドから COM なしで参照するために事前計算）
+        private readonly object _dragRectsLock = new object();
+        private List<System.Drawing.Rectangle> _dragShapeScreenRects = new List<System.Drawing.Rectangle>();
+
+        // タッチドラッグ用に事前エクスポートした図形情報
+        // タッチハンドラー内での COM 呼び出し（shape.Export 等）を排除するために使用
+        private List<DragShapeInfo> _dragShapeInfos = new List<DragShapeInfo>();
+
+        private class DragShapeInfo
+        {
+            public PowerPoint.Shape Shape;
+            public string ExportedImagePath;
+            public float PixelX, PixelY, PixelW, PixelH;
+            public float SlideLeft, SlideTop;
+            public System.Drawing.Rectangle ScreenRect;
+        }
 
         // パフォーマンス・精度改善用の変数
         private DateTime _lastMoveTime = DateTime.MinValue;
@@ -48,6 +66,57 @@ namespace PPTDragDropAddIn
 
         private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         private const uint SWP_SHOWWINDOW = 0x0040;
+
+        // SetGestureConfig: スライドショーウィンドウのパン/スワイプジェスチャーを無効化
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetGestureConfig(IntPtr hwnd, uint dwReserved, uint cIDs,
+            [In] GESTURECONFIG[] pGestureConfig, uint cbSize);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GESTURECONFIG
+        {
+            public uint dwID;
+            public uint dwWant;
+            public uint dwBlock;
+        }
+
+        private const uint GC_ALLGESTURES = 0x00000001;
+        private const uint GID_PAN = 4;
+        private const uint GC_PAN = 0x00000001;
+        private const uint GC_PAN_WITH_SINGLE_FINGER_VERTICALLY = 0x00000002;
+        private const uint GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY = 0x00000004;
+        private const uint GC_PAN_WITH_GUTTER = 0x00000008;
+        private const uint GC_PAN_WITH_INERTIA = 0x00000010;
+
+        /// <summary>
+        /// スライドショーウィンドウのパン（スワイプ）ジェスチャーを無効化する。
+        /// これにより、タッチでのスライド遷移を OS レベルでブロックする。
+        /// </summary>
+        private void DisablePanGesture(IntPtr hwnd)
+        {
+            try
+            {
+                var configs = new GESTURECONFIG[]
+                {
+                    new GESTURECONFIG
+                    {
+                        dwID = GID_PAN,
+                        dwWant = 0, // パンジェスチャーを一切受け付けない
+                        dwBlock = GC_PAN_WITH_SINGLE_FINGER_VERTICALLY
+                                | GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY
+                                | GC_PAN_WITH_GUTTER
+                                | GC_PAN_WITH_INERTIA
+                    }
+                };
+                uint cbSize = (uint)Marshal.SizeOf(typeof(GESTURECONFIG));
+                SetGestureConfig(hwnd, 0, 1, configs, cbSize);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("DisablePanGesture Error: " + ex.Message);
+            }
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
@@ -87,6 +156,15 @@ namespace PPTDragDropAddIn
                 _slideStrokes.Clear();
                 _currentSlideIndex = 1;
 
+                // スライドショーウィンドウのパンジェスチャーを OS レベルで無効化
+                DisablePanGesture((IntPtr)Wn.HWND);
+
+                // ジェスチャーブロッカーをスライドショーウィンドウスレッドにインストール
+                _gestureBlocker?.Uninstall();
+                _gestureBlocker = new GestureBlocker();
+                _gestureBlocker.ShouldBlock = IsShapeAtScreenPoint;
+                _gestureBlocker.Install((IntPtr)Wn.HWND);
+
                 // 投影用ウィンドウの特定
                 _activeShowWindow = Wn;
 
@@ -100,6 +178,19 @@ namespace PPTDragDropAddIn
                 GetWindowRect((IntPtr)_activeShowWindow.HWND, out rect);
                 _cachedWindowRect = rect;
                 UpdateCoordinateContext(_activeShowWindow, rect);
+                UpdateDragShapeInfos(); // 事前エクスポート・タッチ判定座標・TouchGuard矩形を一括更新
+
+                // タッチガードイベントの登録
+                _overlayWindow.TouchGuardTouched -= OverlayWindow_TouchGuardTouched;
+                _overlayWindow.TouchGuardTouched += OverlayWindow_TouchGuardTouched;
+                _overlayWindow.TouchDragged -= OverlayWindow_TouchDragged;
+                _overlayWindow.TouchDragged += OverlayWindow_TouchDragged;
+                _overlayWindow.TouchDragEnded -= OverlayWindow_TouchDragEnded;
+                _overlayWindow.TouchDragEnded += OverlayWindow_TouchDragEnded;
+                // タッチダウン瞬間に IsBlocking を即座に true にするアクションを登録
+                _overlayWindow.ImmediateBlockAction = () => {
+                    if (_gestureBlocker != null) _gestureBlocker.IsBlocking = true;
+                };
 
                 // Win32 API を使用して物理ピクセル単位で位置合わせ（DPIズレ防止）
                 var helper = new System.Windows.Interop.WindowInteropHelper(_overlayWindow);
@@ -141,12 +232,19 @@ namespace PPTDragDropAddIn
         private void Application_SlideShowEnd(PowerPoint.Presentation Pres)
         {
             _mouseHook.Uninstall();
+            _gestureBlocker?.Uninstall();
+            _gestureBlocker = null;
             _isDrawModeActive = false;
 
             if (_overlayWindow != null)
             {
                 _overlayWindow.Hide();
-                _overlayWindow.Dispatcher.Invoke(() => _overlayWindow.ClearDrawing());
+                _overlayWindow.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _overlayWindow.HideSnapshot();
+                    _overlayWindow.ClearDrawing();
+                    _overlayWindow.ClearTouchGuardRects();
+                }));
             }
 
             if (_penPaletteWindow != null)
@@ -245,7 +343,10 @@ namespace PPTDragDropAddIn
                                 _offsetY = slideY - shape.Top;
 
                                 // 画像キャプチャと WPF 表示
-                                _tempImagePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "drag_temp.png");
+                                // 毎回ユニークなファイル名を使うことで BitmapImage の URI キャッシュ問題を回避
+                                _tempImagePath = System.IO.Path.Combine(
+                                    System.IO.Path.GetTempPath(),
+                                    $"drag_temp_{System.Guid.NewGuid():N}.png");
                                 shape.Export(_tempImagePath, PowerPoint.PpShapeFormat.ppShapeFormatPNG);
 
                                 // スライド上の座標からウィンドウ内のピクセル座標を計算
@@ -257,11 +358,18 @@ namespace PPTDragDropAddIn
                                 // 元の図形を隠す（COM操作はここで）
                                 shape.Visible = Office.MsoTriState.msoFalse;
 
+                                // タッチジェスチャーによるスライド遷移をブロック
+                                if (_gestureBlocker != null)
+                                    _gestureBlocker.IsBlocking = true;
+
                                 if (_overlayWindow != null)
                                 {
                                     float px = pixelX, py = pixelY, pw = pixelW, ph = pixelH;
-                                    _overlayWindow.Dispatcher.Invoke(() =>
-                                        _overlayWindow.ShowSnapshot(_tempImagePath, px, py, pw, ph));
+                                    string capturedPath = _tempImagePath;
+                                    // WH_MOUSE_LL コールバックは別スレッドなので BeginInvoke（非同期）。
+                                    // Invoke（同期）を使うとデッドロックする。
+                                    _overlayWindow.Dispatcher.BeginInvoke(new Action(() =>
+                                        _overlayWindow.ShowSnapshot(capturedPath, px, py, pw, ph)));
                                 }
 
                                 _moveStopwatch.Restart();
@@ -343,14 +451,29 @@ namespace PPTDragDropAddIn
                 _activeShape.Top = finalSlideY;
                 _activeShape.Visible = Office.MsoTriState.msoTrue;
 
-                if (_overlayWindow != null)
-                    _overlayWindow.Dispatcher.Invoke(() => _overlayWindow.HideSnapshot());
+                // 使用済みテンポラリファイルを削除
+                var pathToDelete = _tempImagePath;
+                if (pathToDelete != null)
+                    Task.Run(() => { try { System.IO.File.Delete(pathToDelete); } catch { } });
             }
             catch { }
+            finally
+            {
+                // BeginInvoke（非同期）で HideSnapshot を呼ぶ。
+                // WH_MOUSE_LL コールバック内で Invoke（同期）を使うとデッドロックする。
+                if (_overlayWindow != null)
+                    _overlayWindow.Dispatcher.BeginInvoke(new Action(() => _overlayWindow.HideSnapshot()));
+            }
 
-            Task.Delay(50).ContinueWith(_ => {
-                ResetDragState();
-            });
+            // UpdateDragShapeInfos は必ず PPT STA スレッド（Dispatcher）で実行する。
+            // Task.ContinueWith はスレッドプール（MTA）で動くため、そこで Shape COM 参照を
+            // 取得すると MTA アパートメント経由のプロキシになり、後の STA 使用時にフリーズする。
+            Task.Delay(100).ContinueWith(_ =>
+                _overlayWindow?.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { UpdateDragShapeInfos(); } catch { }
+                    ResetDragState();
+                })));
         }
 
         private void ResetDragState()
@@ -358,6 +481,225 @@ namespace PPTDragDropAddIn
             _isDragging = false;
             _activeShape = null;
             if (_mouseHook != null) _mouseHook.IsDragging = false;
+            if (_gestureBlocker != null) _gestureBlocker.IsBlocking = false;
+            if (_overlayWindow != null) _overlayWindow.IsDraggingViaTouch = false;
+        }
+
+        /// <summary>
+        /// 現在スライドの Drag_ 図形を事前エクスポートし、スクリーン座標・画像パスを保持する。
+        /// タッチハンドラー内での COM 呼び出しを排除するために、操作前に必ず呼ぶこと。
+        /// 必ず PPT STA スレッド（Dispatcher）上で呼ぶこと。
+        /// スレッドプール（MTA）から呼ぶと Shape 参照が MTA アパートメント経由になり、
+        /// 後で STA スレッドから使うときに COM マーシャリングが発生してフリーズする。
+        /// </summary>
+        private void UpdateDragShapeInfos()
+        {
+            // 旧 infos を退避（旧ファイル削除は新ファイル確定後に行う）
+            List<DragShapeInfo> oldInfos;
+            lock (_dragRectsLock) { oldInfos = _dragShapeInfos; }
+
+            var infos = new List<DragShapeInfo>();
+            try
+            {
+                if (_activeShowWindow != null && _slidePixelWidth > 0 && _slideHeight > 0)
+                {
+                    var winRect = _cachedWindowRect;
+                    var shapes = _activeShowWindow.View.Slide.Shapes;
+                    for (int i = 1; i <= shapes.Count; i++)
+                    {
+                        var shape = shapes[i];
+                        if (!shape.Name.StartsWith("Drag_")) continue;
+
+                        // 図形画像を事前エクスポート（タッチ時に行うと DM と競合してフリーズする）
+                        string exportPath = System.IO.Path.Combine(
+                            System.IO.Path.GetTempPath(),
+                            $"drag_pre_{System.Guid.NewGuid():N}.png");
+                        try { shape.Export(exportPath, PowerPoint.PpShapeFormat.ppShapeFormatPNG); }
+                        catch { continue; }
+
+                        float pixelX = shape.Left / _slideWidth * _slidePixelWidth + _offsetXInWindow;
+                        float pixelY = shape.Top  / _slideHeight * _slidePixelHeight + _offsetYInWindow;
+                        float pixelW = shape.Width  / _slideWidth  * _slidePixelWidth;
+                        float pixelH = shape.Height / _slideHeight * _slidePixelHeight;
+
+                        int l = (int)pixelX + winRect.Left;
+                        int t = (int)pixelY + winRect.Top;
+                        int r = (int)(pixelX + pixelW) + winRect.Left;
+                        int b = (int)(pixelY + pixelH) + winRect.Top;
+
+                        infos.Add(new DragShapeInfo
+                        {
+                            Shape = shape,
+                            ExportedImagePath = exportPath,
+                            PixelX = pixelX, PixelY = pixelY, PixelW = pixelW, PixelH = pixelH,
+                            SlideLeft = shape.Left, SlideTop = shape.Top,
+                            ScreenRect = new System.Drawing.Rectangle(l, t, r - l, b - t)
+                        });
+                    }
+                }
+            }
+            catch { }
+
+            // 新ファイルが確定してから _dragShapeInfos を更新し、その後に旧ファイルを削除する。
+            // 先に削除すると ShowSnapshot がファイルを読み込む前に消えて WIC エラーになる。
+            var screenRects = infos.Select(info => info.ScreenRect).ToList();
+            lock (_dragRectsLock)
+            {
+                _dragShapeInfos = infos;
+                _dragShapeScreenRects = screenRects;
+            }
+            foreach (var old in oldInfos)
+            {
+                var p = old.ExportedImagePath;
+                Task.Run(() => { try { System.IO.File.Delete(p); } catch { } });
+            }
+
+            // TouchGuard オーバーレイを更新（すでに Dispatcher スレッド上なので直接呼べる）
+            if (_overlayWindow == null) return;
+            var guardRects = new List<System.Windows.Rect>();
+            foreach (var info in infos)
+            {
+                double x = info.ScreenRect.X - _cachedWindowRect.Left;
+                double y = info.ScreenRect.Y - _cachedWindowRect.Top;
+                guardRects.Add(new System.Windows.Rect(x, y, info.ScreenRect.Width, info.ScreenRect.Height));
+            }
+            _overlayWindow.UpdateTouchGuardRects(guardRects);
+        }
+
+        /// <summary>
+        /// GestureBlocker.ShouldBlock として使用。COM なし・スレッドセーフ。
+        /// </summary>
+        private bool IsShapeAtScreenPoint(int screenX, int screenY)
+        {
+            if (_isDrawModeActive) return false;
+            lock (_dragRectsLock)
+            {
+                foreach (var r in _dragShapeScreenRects)
+                    if (r.Contains(screenX, screenY)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// TouchGuard 矩形がタッチされたときに呼ばれる。
+        /// 事前エクスポート済みの _dragShapeInfos を使い、COM 呼び出しを一切行わない。
+        /// （タッチハンドラー内で shape.Export 等の重い COM を呼ぶと、PowerPoint の
+        ///   Direct Manipulation がスライド遷移を処理するタイミングと競合してフリーズする）
+        /// </summary>
+        private void OverlayWindow_TouchGuardTouched(object sender, System.Windows.Point screenPoint)
+        {
+            bool dragStarted = false;
+            try
+            {
+                if (_activeShowWindow == null) return;
+                if (_isDrawModeActive) return;
+
+                int sx = (int)screenPoint.X;
+                int sy = (int)screenPoint.Y;
+
+                // 事前計算済みスクリーン矩形でヒットテスト（COM 呼び出しなし）
+                DragShapeInfo found = null;
+                lock (_dragRectsLock)
+                {
+                    // 高インデックス（最前面）優先で検索
+                    for (int i = _dragShapeInfos.Count - 1; i >= 0; i--)
+                    {
+                        if (_dragShapeInfos[i].ScreenRect.Contains(sx, sy))
+                        {
+                            found = _dragShapeInfos[i];
+                            break;
+                        }
+                    }
+                }
+                if (found == null) return;
+
+                _activeShape = found.Shape;
+                _isDragging = true;
+                _mouseHook.IsDragging = true;
+                _tempImagePath = null; // タッチドラッグでは事前エクスポート済みパスを直接使用
+
+                float slideX = GetSlideX(sx);
+                float slideY = GetSlideY(sy);
+                _offsetX = slideX - found.SlideLeft;
+                _offsetY = slideY - found.SlideTop;
+
+                // 図形を非表示にする。重い処理は避けるため BeginInvoke で後回しにする。
+                // オーバーレイが NearlyTransparentBrush で覆っているため、わずかな遅延は視覚的に問題ない。
+                var shapeToHide = found.Shape;
+                _overlayWindow.Dispatcher.BeginInvoke(
+                    new Action(() => { try { shapeToHide.Visible = Office.MsoTriState.msoFalse; } catch { } }),
+                    System.Windows.Threading.DispatcherPriority.Background);
+
+                if (_gestureBlocker != null) _gestureBlocker.IsBlocking = true;
+
+                if (_overlayWindow != null)
+                {
+                    float px = found.PixelX, py = found.PixelY, pw = found.PixelW, ph = found.PixelH;
+                    string capturedPath = found.ExportedImagePath;
+                    if (_overlayWindow.Dispatcher.CheckAccess())
+                        _overlayWindow.ShowSnapshot(capturedPath, px, py, pw, ph);
+                    else
+                        _overlayWindow.Dispatcher.BeginInvoke(new Action(() =>
+                            _overlayWindow.ShowSnapshot(capturedPath, px, py, pw, ph)));
+                }
+
+                dragStarted = true;
+                _moveStopwatch.Restart();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("TouchGuardTouched Error: " + ex.Message);
+                ResetDragState();
+            }
+            finally
+            {
+                if (!dragStarted && _overlayWindow != null)
+                {
+                    if (_overlayWindow.Dispatcher.CheckAccess())
+                        _overlayWindow.HideSnapshot();
+                    else
+                        _overlayWindow.Dispatcher.BeginInvoke(new Action(() => _overlayWindow.HideSnapshot()));
+                    if (_gestureBlocker != null)
+                        _gestureBlocker.IsBlocking = false;
+                }
+            }
+        }
+
+        private void OverlayWindow_TouchDragged(object sender, System.Windows.Point screenPos)
+        {
+            if (!_isDragging || _overlayWindow == null) return;
+            // TouchMove は WPF スレッド上で発火するため、UpdatePosition も直接呼べる
+            float pixelX = (float)(screenPos.X - _cachedWindowRect.Left)
+                           - (_offsetX / _slideWidth * _slidePixelWidth);
+            float pixelY = (float)(screenPos.Y - _cachedWindowRect.Top)
+                           - (_offsetY / _slideHeight * _slidePixelHeight);
+            _overlayWindow.UpdatePosition(pixelX, pixelY);
+        }
+
+        private void OverlayWindow_TouchDragEnded(object sender, System.Windows.Point screenPos)
+        {
+            if (!_isDragging || _activeShape == null) return;
+            try
+            {
+                float finalSlideX = GetSlideX((int)screenPos.X) - _offsetX;
+                float finalSlideY = GetSlideY((int)screenPos.Y) - _offsetY;
+                _activeShape.Left = finalSlideX;
+                _activeShape.Top = finalSlideY;
+                _activeShape.Visible = Office.MsoTriState.msoTrue;
+                // 事前エクスポート済みファイルはここでは削除しない。
+                // UpdateDragShapeInfos が次回呼ばれたとき（100ms 後）に旧ファイルを削除する。
+            }
+            catch { }
+            finally
+            {
+                _overlayWindow?.HideSnapshot();
+            }
+            Task.Delay(100).ContinueWith(_ =>
+                _overlayWindow?.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { UpdateDragShapeInfos(); } catch { }
+                    ResetDragState();
+                })));
         }
 
         private float GetSlideX(int screenX)
@@ -382,27 +724,38 @@ namespace PPTDragDropAddIn
             try { newIndex = Wn.View.CurrentShowPosition; }
             catch { return; }
 
-            _overlayWindow.Dispatcher.Invoke(() =>
+            // インデックスをローカル変数にキャプチャ。
+            // BeginInvoke（非同期）にするため、クロージャが _currentSlideIndex フィールドを
+            // 参照すると先に更新されてしまう。ローカル変数で正しい値を保持する。
+            int savedIndex = _currentSlideIndex;
+            // Invoke（同期）は OverlayWindow_TouchGuardTouched 内の COM 呼び出しと
+            // 同じスレッドでデッドロックを引き起こす可能性があるため BeginInvoke を使う。
+            _overlayWindow.Dispatcher.BeginInvoke(new Action(() =>
             {
-                // 現在のスライドの描画を保存
-                if (_currentSlideIndex > 0)
-                    _slideStrokes[_currentSlideIndex] = _overlayWindow.GetStrokes();
-
-                // 新しいスライドの描画を復元（なければ空）
+                if (savedIndex > 0)
+                    _slideStrokes[savedIndex] = _overlayWindow.GetStrokes();
                 if (_slideStrokes.TryGetValue(newIndex, out var saved))
                     _overlayWindow.SetStrokes(saved);
                 else
                     _overlayWindow.ClearDrawing();
-            });
+            }));
 
             _currentSlideIndex = newIndex;
+            UpdateDragShapeInfos(); // 新スライドの図形を事前エクスポート・TouchGuard矩形も更新
+
+            try
+            {
+                if (_activeShowWindow != null)
+                    DisablePanGesture((IntPtr)_activeShowWindow.HWND);
+            }
+            catch { }
         }
 
-        public void SetPenMode(Color color, double thickness = 3.0)
+        public void SetPenMode(Color color, double thickness = 3.0, bool isHighlighter = false)
         {
             _isDrawModeActive = true;
             if (_overlayWindow != null)
-                _overlayWindow.Dispatcher.Invoke(() => _overlayWindow.SetPenMode(color, thickness));
+                _overlayWindow.Dispatcher.Invoke(() => _overlayWindow.SetPenMode(color, thickness, isHighlighter));
         }
 
         public void SetEraserMode()
