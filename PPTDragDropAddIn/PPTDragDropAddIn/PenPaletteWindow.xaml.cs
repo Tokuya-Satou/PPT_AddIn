@@ -58,7 +58,7 @@ namespace PPTDragDropAddIn
             => Globals.ThisAddIn.SetPenMode(Colors.Blue);
 
         private void BtnYellowMarker_Click(object sender, RoutedEventArgs e)
-            => Globals.ThisAddIn.SetPenMode(Color.FromRgb(255, 255, 0), thickness: 12.0);
+            => Globals.ThisAddIn.SetPenMode(Color.FromRgb(255, 255, 0), thickness: 12.0, isHighlighter: true);
 
         private void BtnEraser_Click(object sender, RoutedEventArgs e)
             => Globals.ThisAddIn.SetEraserMode();
