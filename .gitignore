@@ -17,8 +17,8 @@ packages/
 *.nupkg
 
 # VS Code (tasks.jsonは管理対象とする)
-.vscode/settings.json
-.vscode/launch.json
+**/.vscode/
+!**/.vscode/tasks.json
 
 # Claude Code メモリ（ローカル専用）
 .claude/
