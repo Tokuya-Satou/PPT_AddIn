@@ -1,16 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="Ribbon_Load">
+  <ribbon>
+    <tabs>
+      <tab id="tabPPTDrag" label="PPTドラッグ">
+
+        <group id="grpControl" label="制御">
+          <toggleButton id="tglDragDrop"
+                        label="ドラッグ移動"
+                        getPressed="GetDragDropPressed"
+                        onAction="OnToggleDragDrop"
+                        size="large"
+                        imageMso="ControlProperties" />
+          <toggleButton id="tglPenPalette"
+                        label="ペンパレット"
+                        getPressed="GetPenPalettePressed"
+                        onAction="OnTogglePenPalette"
+                        size="large"
+                        imageMso="InkAnnotations" />
+        </group>
+
+        <group id="grpPen" label="ペン設定">
+          <splitButton id="splitPen" size="large">
+            <button id="btnPenMain"
+                    getLabel="GetPenLabel"
+                    getImage="GetPenImage"
+                    onAction="OnPenMain" />
+            <menu id="menuPen">
+              <button id="btnPenBlack"  label="黒"      tag="Black"      onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPenRed"    label="赤"      tag="Red"        onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPenBlue"   label="青"      tag="Blue"       onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPenGreen"  label="緑"      tag="Green"      onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPenWhite"  label="白"      tag="White"      onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPenOrange" label="オレンジ" tag="Orange"     onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPenPurple" label="紫"      tag="Purple"     onAction="OnPenColor" getImage="GetColorImage" />
+            </menu>
+          </splitButton>
+
+          <splitButton id="splitMarker" size="large">
+            <button id="btnMarkerMain"
+                    getLabel="GetMarkerLabel"
+                    getImage="GetMarkerImage"
+                    onAction="OnMarkerMain" />
+            <menu id="menuMarker">
+              <button id="btnMarkerYellow"     label="黄"   tag="Yellow"     onAction="OnMarkerColor" getImage="GetColorImage" />
+              <button id="btnMarkerCyan"       label="水色" tag="Cyan"       onAction="OnMarkerColor" getImage="GetColorImage" />
+              <button id="btnMarkerOrange"     label="橙"   tag="Orange"     onAction="OnMarkerColor" getImage="GetColorImage" />
+              <button id="btnMarkerLightGreen" label="黄緑" tag="LightGreen" onAction="OnMarkerColor" getImage="GetColorImage" />
+              <button id="btnMarkerPink"       label="ピンク" tag="Pink"     onAction="OnMarkerColor" getImage="GetColorImage" />
+            </menu>
+          </splitButton>
+        </group>
+
+      </tab>
+    </tabs>
+  </ribbon>
+
   <contextMenus>
     <contextMenu idMso="ContextMenuShape">
-      <button id="EnableDragShape" 
-              getLabel="GetDragLabel" 
-              onAction="OnToggleDrag" 
+      <button id="EnableDragShape"
+              getLabel="GetDragLabel"
+              onAction="OnToggleDrag"
               insertAfterMso="ShapeFormat"/>
     </contextMenu>
     <contextMenu idMso="ContextMenuPicture">
-      <button id="EnableDragPicture" 
-              getLabel="GetDragLabel" 
-              onAction="OnToggleDrag" 
+      <button id="EnableDragPicture"
+              getLabel="GetDragLabel"
+              onAction="OnToggleDrag"
               insertAfterMso="PictureFormat"/>
     </contextMenu>
   </contextMenus>

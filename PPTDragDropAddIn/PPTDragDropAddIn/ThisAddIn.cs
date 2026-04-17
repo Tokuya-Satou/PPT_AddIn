@@ -146,86 +146,105 @@ namespace PPTDragDropAddIn
 
         private void Application_SlideShowBegin(PowerPoint.SlideShowWindow Wn)
         {
+            bool dragEnabled = Properties.Settings.Default.DragDropEnabled;
+            bool penEnabled  = Properties.Settings.Default.PenPaletteEnabled;
+
+            if (!dragEnabled && !penEnabled) return;
+
             try
             {
-                // 初期位置を保存
-                SaveInitialPositions(Wn.Presentation);
-                _mouseHook.Install();
-
-                // スライド描画データをリセット
                 _slideStrokes.Clear();
                 _currentSlideIndex = 1;
-
-                // スライドショーウィンドウのパンジェスチャーを OS レベルで無効化
-                DisablePanGesture((IntPtr)Wn.HWND);
-
-                // ジェスチャーブロッカーをスライドショーウィンドウスレッドにインストール
-                _gestureBlocker?.Uninstall();
-                _gestureBlocker = new GestureBlocker();
-                _gestureBlocker.ShouldBlock = IsShapeAtScreenPoint;
-                _gestureBlocker.Install((IntPtr)Wn.HWND);
-
-                // 投影用ウィンドウの特定
                 _activeShowWindow = Wn;
-
-                // オーバーレイウィンドウの作成と表示
-                if (_overlayWindow == null)
-                {
-                    _overlayWindow = new OverlayWindow();
-                }
 
                 RECT rect;
                 GetWindowRect((IntPtr)_activeShowWindow.HWND, out rect);
                 _cachedWindowRect = rect;
                 UpdateCoordinateContext(_activeShowWindow, rect);
-                UpdateDragShapeInfos(); // 事前エクスポート・タッチ判定座標・TouchGuard矩形を一括更新
 
-                // タッチガードイベントの登録（※タッチでのドラッグにバグがあるため一時無効化）
-                // _overlayWindow.TouchGuardTouched -= OverlayWindow_TouchGuardTouched;
-                // _overlayWindow.TouchGuardTouched += OverlayWindow_TouchGuardTouched;
-                // _overlayWindow.TouchDragged -= OverlayWindow_TouchDragged;
-                // _overlayWindow.TouchDragged += OverlayWindow_TouchDragged;
-                // _overlayWindow.TouchDragEnded -= OverlayWindow_TouchDragEnded;
-                // _overlayWindow.TouchDragEnded += OverlayWindow_TouchDragEnded;
-                // タッチダウン瞬間に IsBlocking を即座に true にするアクションを登録
-                // _overlayWindow.ImmediateBlockAction = () => {
-                //    if (_gestureBlocker != null) _gestureBlocker.IsBlocking = true;
-                // };
+                // ドラッグ機能が有効な場合のみ関連処理を起動
+                if (dragEnabled)
+                {
+                    SaveInitialPositions(Wn.Presentation);
+                    _mouseHook.Install();
+                    DisablePanGesture((IntPtr)Wn.HWND);
 
-                // Win32 API を使用して物理ピクセル単位で位置合わせ（DPIズレ防止）
+                    _gestureBlocker?.Uninstall();
+                    _gestureBlocker = new GestureBlocker();
+                    _gestureBlocker.ShouldBlock = IsShapeAtScreenPoint;
+                    _gestureBlocker.Install((IntPtr)Wn.HWND);
+
+                    UpdateDragShapeInfos();
+
+                    // タッチガードイベントの登録（※タッチでのドラッグにバグがあるため一時無効化）
+                    // _overlayWindow.TouchGuardTouched -= OverlayWindow_TouchGuardTouched;
+                    // _overlayWindow.TouchGuardTouched += OverlayWindow_TouchGuardTouched;
+                    // _overlayWindow.TouchDragged -= OverlayWindow_TouchDragged;
+                    // _overlayWindow.TouchDragged += OverlayWindow_TouchDragged;
+                    // _overlayWindow.TouchDragEnded -= OverlayWindow_TouchDragEnded;
+                    // _overlayWindow.TouchDragEnded += OverlayWindow_TouchDragEnded;
+                    // _overlayWindow.ImmediateBlockAction = () => {
+                    //    if (_gestureBlocker != null) _gestureBlocker.IsBlocking = true;
+                    // };
+                }
+
+                // オーバーレイウィンドウはドラッグ・ペン描画どちらにも必要
+                if (_overlayWindow == null)
+                    _overlayWindow = new OverlayWindow();
+
                 var helper = new System.Windows.Interop.WindowInteropHelper(_overlayWindow);
                 IntPtr hwnd = helper.EnsureHandle();
-                
-                SetWindowPos(hwnd, HWND_TOPMOST, 
-                    rect.Left, rect.Top, 
-                    rect.Right - rect.Left, rect.Bottom - rect.Top, 
+                SetWindowPos(hwnd, HWND_TOPMOST,
+                    rect.Left, rect.Top,
+                    rect.Right - rect.Left, rect.Bottom - rect.Top,
                     SWP_SHOWWINDOW);
 
                 _overlayWindow.Show();
                 _isDrawModeActive = false;
-                _overlayWindow.Dispatcher.Invoke(() => _overlayWindow.SetArrowMode());
 
-                // ペンパレットの作成と表示（毎回再作成して状態をリセット）
-                if (_penPaletteWindow != null)
+                // 保存済みのペン色を DrawingAttributes に事前設定してからアロー表示
+                _overlayWindow.Dispatcher.Invoke(() =>
                 {
-                    _penPaletteWindow.Close();
-                    _penPaletteWindow = null;
+                    _overlayWindow.SetPenMode(GetSavedPenColor());
+                    _overlayWindow.SetArrowMode();
+                });
+
+                // ペンパレットが有効な場合のみ表示
+                if (penEnabled)
+                {
+                    if (_penPaletteWindow != null)
+                    {
+                        _penPaletteWindow.Close();
+                        _penPaletteWindow = null;
+                    }
+                    _penPaletteWindow = new PenPaletteWindow();
+                    _penPaletteWindow.Show();
+                    _penPaletteWindow.UpdateLayout();
+                    _overlayWindow.AssociatedPalette = _penPaletteWindow;
+
+                    double dpiScale = 1.0;
+                    try { dpiScale = System.Windows.Media.VisualTreeHelper.GetDpi(_penPaletteWindow).DpiScaleX; } catch { }
+                    _penPaletteWindow.Left = (rect.Left + 10) / dpiScale;
+                    _penPaletteWindow.Top = (rect.Bottom - 10) / dpiScale - _penPaletteWindow.ActualHeight;
                 }
-                _penPaletteWindow = new PenPaletteWindow();
-                _penPaletteWindow.Show();
-                _penPaletteWindow.UpdateLayout();
-
-                // OverlayWindow にパレット参照を渡して描画除外を有効化
-                _overlayWindow.AssociatedPalette = _penPaletteWindow;
-
-                double dpiScale = 1.0;
-                try { dpiScale = System.Windows.Media.VisualTreeHelper.GetDpi(_penPaletteWindow).DpiScaleX; } catch { }
-                _penPaletteWindow.Left = (rect.Left + 10) / dpiScale;
-                _penPaletteWindow.Top = (rect.Bottom - 10) / dpiScale - _penPaletteWindow.ActualHeight;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("SlideShowBegin Error: " + ex.Message);
+            }
+        }
+
+        private System.Windows.Media.Color GetSavedPenColor()
+        {
+            switch (Properties.Settings.Default.LastPenColor)
+            {
+                case "Red":    return System.Windows.Media.Color.FromRgb(0xFF, 0x33, 0x33);
+                case "Blue":   return System.Windows.Media.Color.FromRgb(0x33, 0x55, 0xFF);
+                case "Green":  return System.Windows.Media.Color.FromRgb(0x33, 0xAA, 0x33);
+                case "White":  return System.Windows.Media.Color.FromRgb(0xFF, 0xFF, 0xFF);
+                case "Orange": return System.Windows.Media.Color.FromRgb(0xFF, 0x88, 0x00);
+                case "Purple": return System.Windows.Media.Color.FromRgb(0x99, 0x33, 0xCC);
+                default:       return System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11); // Black
             }
         }
 
