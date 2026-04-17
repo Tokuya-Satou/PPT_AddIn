@@ -20,23 +20,55 @@
         </group>
 
         <group id="grpPen" label="ペン設定">
-          <splitButton id="splitPen" size="large">
-            <button id="btnPenMain"
+          <splitButton id="splitPen1" size="normal">
+            <button id="btnPen1Main"
                     getLabel="GetPenLabel"
                     getImage="GetPenImage"
                     onAction="OnPenMain" />
-            <menu id="menuPen">
-              <button id="btnPenBlack"  label="黒"      tag="Black"      onAction="OnPenColor" getImage="GetColorImage" />
-              <button id="btnPenRed"    label="赤"      tag="Red"        onAction="OnPenColor" getImage="GetColorImage" />
-              <button id="btnPenBlue"   label="青"      tag="Blue"       onAction="OnPenColor" getImage="GetColorImage" />
-              <button id="btnPenGreen"  label="緑"      tag="Green"      onAction="OnPenColor" getImage="GetColorImage" />
-              <button id="btnPenWhite"  label="白"      tag="White"      onAction="OnPenColor" getImage="GetColorImage" />
-              <button id="btnPenOrange" label="オレンジ" tag="Orange"     onAction="OnPenColor" getImage="GetColorImage" />
-              <button id="btnPenPurple" label="紫"      tag="Purple"     onAction="OnPenColor" getImage="GetColorImage" />
+            <menu id="menuPen1">
+              <button id="btnPen1Black"  label="黒"     tag="Black_1"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen1Red"    label="赤"     tag="Red_1"    onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen1Blue"   label="青"     tag="Blue_1"   onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen1Green"  label="緑"     tag="Green_1"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen1White"  label="白"     tag="White_1"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen1Orange" label="オレンジ" tag="Orange_1" onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen1Purple" label="紫"     tag="Purple_1" onAction="OnPenColor" getImage="GetColorImage" />
             </menu>
           </splitButton>
 
-          <splitButton id="splitMarker" size="large">
+          <splitButton id="splitPen2" size="normal">
+            <button id="btnPen2Main"
+                    getLabel="GetPenLabel"
+                    getImage="GetPenImage"
+                    onAction="OnPenMain" />
+            <menu id="menuPen2">
+              <button id="btnPen2Black"  label="黒"     tag="Black_2"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen2Red"    label="赤"     tag="Red_2"    onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen2Blue"   label="青"     tag="Blue_2"   onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen2Green"  label="緑"     tag="Green_2"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen2White"  label="白"     tag="White_2"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen2Orange" label="オレンジ" tag="Orange_2" onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen2Purple" label="紫"     tag="Purple_2" onAction="OnPenColor" getImage="GetColorImage" />
+            </menu>
+          </splitButton>
+
+          <splitButton id="splitPen3" size="normal">
+            <button id="btnPen3Main"
+                    getLabel="GetPenLabel"
+                    getImage="GetPenImage"
+                    onAction="OnPenMain" />
+            <menu id="menuPen3">
+              <button id="btnPen3Black"  label="黒"     tag="Black_3"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen3Red"    label="赤"     tag="Red_3"    onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen3Blue"   label="青"     tag="Blue_3"   onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen3Green"  label="緑"     tag="Green_3"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen3White"  label="白"     tag="White_3"  onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen3Orange" label="オレンジ" tag="Orange_3" onAction="OnPenColor" getImage="GetColorImage" />
+              <button id="btnPen3Purple" label="紫"     tag="Purple_3" onAction="OnPenColor" getImage="GetColorImage" />
+            </menu>
+          </splitButton>
+
+          <splitButton id="splitMarker" size="normal">
             <button id="btnMarkerMain"
                     getLabel="GetMarkerLabel"
                     getImage="GetMarkerImage"

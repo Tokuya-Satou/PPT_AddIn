@@ -234,9 +234,11 @@ namespace PPTDragDropAddIn
             }
         }
 
-        private System.Windows.Media.Color GetSavedPenColor()
+        internal System.Windows.Media.Color GetSavedPenColor(int index = 1)
         {
-            switch (Properties.Settings.Default.LastPenColor)
+            string colorName = index == 3 ? Properties.Settings.Default.Pen3Color :
+                               (index == 2 ? Properties.Settings.Default.Pen2Color : Properties.Settings.Default.Pen1Color);
+            switch (colorName)
             {
                 case "Red":    return System.Windows.Media.Color.FromRgb(0xFF, 0x33, 0x33);
                 case "Blue":   return System.Windows.Media.Color.FromRgb(0x33, 0x55, 0xFF);
@@ -245,6 +247,46 @@ namespace PPTDragDropAddIn
                 case "Orange": return System.Windows.Media.Color.FromRgb(0xFF, 0x88, 0x00);
                 case "Purple": return System.Windows.Media.Color.FromRgb(0x99, 0x33, 0xCC);
                 default:       return System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11); // Black
+            }
+        }
+
+        internal string GetSavedPenName(int index = 1)
+        {
+            string colorName = index == 3 ? Properties.Settings.Default.Pen3Color :
+                               (index == 2 ? Properties.Settings.Default.Pen2Color : Properties.Settings.Default.Pen1Color);
+            switch (colorName)
+            {
+                case "Red":    return "赤";
+                case "Blue":   return "青";
+                case "Green":  return "緑";
+                case "White":  return "白";
+                case "Orange": return "オレンジ";
+                case "Purple": return "紫";
+                default:       return "黒";
+            }
+        }
+
+        internal System.Windows.Media.Color GetSavedMarkerColor()
+        {
+            switch (Properties.Settings.Default.Marker1Color)
+            {
+                case "Cyan":       return System.Windows.Media.Color.FromRgb(0x00, 0xCC, 0xFF);
+                case "Orange":     return System.Windows.Media.Color.FromRgb(0xFF, 0x99, 0x00);
+                case "LightGreen": return System.Windows.Media.Color.FromRgb(0x99, 0xFF, 0x33);
+                case "Pink":       return System.Windows.Media.Color.FromRgb(0xFF, 0x66, 0xCC);
+                default:           return System.Windows.Media.Color.FromRgb(0xFF, 0xFF, 0x00); // Yellow
+            }
+        }
+
+        internal string GetSavedMarkerName()
+        {
+            switch (Properties.Settings.Default.Marker1Color)
+            {
+                case "Cyan":       return "水色";
+                case "Orange":     return "橙";
+                case "LightGreen": return "黄緑";
+                case "Pink":       return "ピンク";
+                default:           return "黄"; // Yellow
             }
         }
 
