@@ -10,10 +10,16 @@
     <Setting Name="PenPaletteEnabled" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
-    <Setting Name="LastPenColor" Type="System.String" Scope="User">
+    <Setting Name="Pen1Color" Type="System.String" Scope="User">
       <Value Profile="(Default)">Black</Value>
     </Setting>
-    <Setting Name="LastMarkerColor" Type="System.String" Scope="User">
+    <Setting Name="Pen2Color" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Red</Value>
+    </Setting>
+    <Setting Name="Pen3Color" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Blue</Value>
+    </Setting>
+    <Setting Name="Marker1Color" Type="System.String" Scope="User">
       <Value Profile="(Default)">Yellow</Value>
     </Setting>
   </Settings>

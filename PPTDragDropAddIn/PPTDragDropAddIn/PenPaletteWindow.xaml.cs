@@ -16,6 +16,22 @@ namespace PPTDragDropAddIn
         public PenPaletteWindow()
         {
             InitializeComponent();
+            this.Loaded += PenPaletteWindow_Loaded;
+        }
+
+        private void PenPaletteWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            UI_Pen1Ellipse.Fill = new SolidColorBrush(Globals.ThisAddIn.GetSavedPenColor(1));
+            UI_Pen1Text.Text = " " + Globals.ThisAddIn.GetSavedPenName(1) + "ペン";
+
+            UI_Pen2Ellipse.Fill = new SolidColorBrush(Globals.ThisAddIn.GetSavedPenColor(2));
+            UI_Pen2Text.Text = " " + Globals.ThisAddIn.GetSavedPenName(2) + "ペン";
+
+            UI_Pen3Ellipse.Fill = new SolidColorBrush(Globals.ThisAddIn.GetSavedPenColor(3));
+            UI_Pen3Text.Text = " " + Globals.ThisAddIn.GetSavedPenName(3) + "ペン";
+
+            UI_MarkerRect.Fill = new SolidColorBrush(Globals.ThisAddIn.GetSavedMarkerColor());
+            UI_MarkerText.Text = " " + Globals.ThisAddIn.GetSavedMarkerName() + "マーカー";
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -48,17 +64,17 @@ namespace PPTDragDropAddIn
             BtnToggle.Content = _isCollapsed ? "＋" : "−";
         }
 
-        private void BtnBlackPen_Click(object sender, RoutedEventArgs e)
-            => Globals.ThisAddIn.SetPenMode(Colors.Black);
+        private void BtnPen1_Click(object sender, RoutedEventArgs e)
+            => Globals.ThisAddIn.SetPenMode(Globals.ThisAddIn.GetSavedPenColor(1));
 
-        private void BtnRedPen_Click(object sender, RoutedEventArgs e)
-            => Globals.ThisAddIn.SetPenMode(Colors.Red);
+        private void BtnPen2_Click(object sender, RoutedEventArgs e)
+            => Globals.ThisAddIn.SetPenMode(Globals.ThisAddIn.GetSavedPenColor(2));
 
-        private void BtnBluePen_Click(object sender, RoutedEventArgs e)
-            => Globals.ThisAddIn.SetPenMode(Colors.Blue);
+        private void BtnPen3_Click(object sender, RoutedEventArgs e)
+            => Globals.ThisAddIn.SetPenMode(Globals.ThisAddIn.GetSavedPenColor(3));
 
-        private void BtnYellowMarker_Click(object sender, RoutedEventArgs e)
-            => Globals.ThisAddIn.SetPenMode(Color.FromRgb(255, 255, 0), thickness: 12.0, isHighlighter: true);
+        private void BtnMarker_Click(object sender, RoutedEventArgs e)
+            => Globals.ThisAddIn.SetPenMode(Globals.ThisAddIn.GetSavedMarkerColor(), thickness: 12.0, isHighlighter: true);
 
         private void BtnEraser_Click(object sender, RoutedEventArgs e)
             => Globals.ThisAddIn.SetEraserMode();

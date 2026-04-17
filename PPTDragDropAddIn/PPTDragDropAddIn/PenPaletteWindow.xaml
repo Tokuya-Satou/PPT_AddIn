@@ -117,39 +117,32 @@
             <!-- 折りたたみ可能なコンテンツ -->
             <StackPanel x:Name="PanelContent">
 
-                <!-- 黒ペン -->
-                <Button x:Name="BtnBlackPen" Style="{StaticResource PenButtonStyle}"
-                        Click="BtnBlackPen_Click" Margin="0,2">
+                <Button x:Name="BtnPen1" Style="{StaticResource PenButtonStyle}" Click="BtnPen1_Click" Margin="0,2">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="14" Height="14" Fill="#111111" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
-                        <TextBlock Text=" 黒ペン" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                        <Ellipse x:Name="UI_Pen1Ellipse" Width="14" Height="14" Fill="#111111" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="UI_Pen1Text" Text=" ペン1" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
-                <!-- 赤ペン -->
-                <Button x:Name="BtnRedPen" Style="{StaticResource PenButtonStyle}"
-                        Click="BtnRedPen_Click" Margin="0,2">
+                <Button x:Name="BtnPen2" Style="{StaticResource PenButtonStyle}" Click="BtnPen2_Click" Margin="0,2">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="14" Height="14" Fill="#FF3333" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
-                        <TextBlock Text=" 赤ペン" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                        <Ellipse x:Name="UI_Pen2Ellipse" Width="14" Height="14" Fill="#FF3333" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="UI_Pen2Text" Text=" ペン2" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
-                <!-- 青ペン -->
-                <Button x:Name="BtnBluePen" Style="{StaticResource PenButtonStyle}"
-                        Click="BtnBluePen_Click" Margin="0,2">
+                <Button x:Name="BtnPen3" Style="{StaticResource PenButtonStyle}" Click="BtnPen3_Click" Margin="0,2">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="14" Height="14" Fill="#3355FF" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
-                        <TextBlock Text=" 青ペン" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                        <Ellipse x:Name="UI_Pen3Ellipse" Width="14" Height="14" Fill="#3355FF" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="UI_Pen3Text" Text=" ペン3" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
-                <!-- 黄色マーカー -->
-                <Button x:Name="BtnYellowMarker" Style="{StaticResource PenButtonStyle}"
-                        Click="BtnYellowMarker_Click" Margin="0,2">
+                <!-- メインマーカー (リボン設定色) -->
+                <Button x:Name="BtnMarker" Style="{StaticResource PenButtonStyle}" Click="BtnMarker_Click" Margin="0,2">
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="16" Height="10" Fill="#FFFF00" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
-                        <TextBlock Text=" 黄色ペン" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="UI_MarkerRect" Width="16" Height="10" Fill="#FFFF00" Stroke="#AAAAAA" StrokeThickness="1" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="UI_MarkerText" Text=" マーカー" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 

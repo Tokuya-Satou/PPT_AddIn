@@ -86,31 +86,37 @@ namespace PPTDragDropAddIn
 
         public string GetPenLabel(Office.IRibbonControl control)
         {
-            var key = Properties.Settings.Default.LastPenColor;
-            return "ペン: " + (PenLabels.ContainsKey(key) ? PenLabels[key] : key);
+            int penIndex = control.Id.Contains("3") ? 3 : (control.Id.Contains("2") ? 2 : 1);
+            string key = penIndex == 3 ? Properties.Settings.Default.Pen3Color :
+                         (penIndex == 2 ? Properties.Settings.Default.Pen2Color : Properties.Settings.Default.Pen1Color);
+            return "ペン" + penIndex + ": " + (PenLabels.ContainsKey(key) ? PenLabels[key] : key);
         }
 
         public string GetMarkerLabel(Office.IRibbonControl control)
         {
-            var key = Properties.Settings.Default.LastMarkerColor;
+            var key = Properties.Settings.Default.Marker1Color;
             return "蛍光: " + (MarkerLabels.ContainsKey(key) ? MarkerLabels[key] : key);
         }
 
         public Bitmap GetPenImage(Office.IRibbonControl control)
         {
-            var key = Properties.Settings.Default.LastPenColor;
+            int penIndex = control.Id.Contains("3") ? 3 : (control.Id.Contains("2") ? 2 : 1);
+            string key = penIndex == 3 ? Properties.Settings.Default.Pen3Color :
+                         (penIndex == 2 ? Properties.Settings.Default.Pen2Color : Properties.Settings.Default.Pen1Color);
             return CreateColorSwatch(PenColors.ContainsKey(key) ? PenColors[key] : Color.Black);
         }
 
         public Bitmap GetMarkerImage(Office.IRibbonControl control)
         {
-            var key = Properties.Settings.Default.LastMarkerColor;
+            var key = Properties.Settings.Default.Marker1Color;
             return CreateColorSwatch(MarkerColors.ContainsKey(key) ? MarkerColors[key] : Color.Yellow);
         }
 
         public Bitmap GetColorImage(Office.IRibbonControl control)
         {
-            var tag = control.Tag;
+            string tag = control.Tag;
+            if (tag != null && tag.Contains("_")) tag = tag.Split('_')[0];
+
             Color c;
             if (PenColors.TryGetValue(tag, out c) || MarkerColors.TryGetValue(tag, out c))
                 return CreateColorSwatch(c);
@@ -119,7 +125,6 @@ namespace PPTDragDropAddIn
 
         public void OnPenMain(Office.IRibbonControl control)
         {
-            // メインボタン: 現在の LastPenColor を再確認・保存（色は変えない）
             Properties.Settings.Default.Save();
         }
 
@@ -130,14 +135,21 @@ namespace PPTDragDropAddIn
 
         public void OnPenColor(Office.IRibbonControl control)
         {
-            Properties.Settings.Default.LastPenColor = control.Tag;
+            string[] parts = control.Tag.Split('_');
+            string color = parts[0];
+            string indexStr = parts.Length > 1 ? parts[1] : "1";
+
+            if (indexStr == "1") Properties.Settings.Default.Pen1Color = color;
+            else if (indexStr == "2") Properties.Settings.Default.Pen2Color = color;
+            else if (indexStr == "3") Properties.Settings.Default.Pen3Color = color;
+
             Properties.Settings.Default.Save();
-            ribbon.InvalidateControl("btnPenMain");
+            ribbon.InvalidateControl("btnPen" + indexStr + "Main");
         }
 
         public void OnMarkerColor(Office.IRibbonControl control)
         {
-            Properties.Settings.Default.LastMarkerColor = control.Tag;
+            Properties.Settings.Default.Marker1Color = control.Tag;
             Properties.Settings.Default.Save();
             ribbon.InvalidateControl("btnMarkerMain");
         }

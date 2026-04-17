@@ -42,17 +42,33 @@ namespace PPTDragDropAddIn.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Black")]
-        public string LastPenColor {
-            get { return ((string)(this["LastPenColor"])); }
-            set { this["LastPenColor"] = value; }
+        public string Pen1Color {
+            get { return ((string)(this["Pen1Color"])); }
+            set { this["Pen1Color"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Red")]
+        public string Pen2Color {
+            get { return ((string)(this["Pen2Color"])); }
+            set { this["Pen2Color"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Blue")]
+        public string Pen3Color {
+            get { return ((string)(this["Pen3Color"])); }
+            set { this["Pen3Color"] = value; }
         }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Yellow")]
-        public string LastMarkerColor {
-            get { return ((string)(this["LastMarkerColor"])); }
-            set { this["LastMarkerColor"] = value; }
+        public string Marker1Color {
+            get { return ((string)(this["Marker1Color"])); }
+            set { this["Marker1Color"] = value; }
         }
     }
 }
