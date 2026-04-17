@@ -1,17 +1,18 @@
-# リボンUI実装仕様書 v1.0
+# リボンUI実装仕様書 v1.1
 
-作成日: 2026-04-17
+更新日: 2026-04-18 (実装完了に伴う更新)
 
 ---
 
-## 1. 実装スコープ（今回対象）
+## 1. 実装スコープ
 
 | 機能 | 内容 |
 |---|---|
 | ドラッグ移動 ON/OFF | リボンのトグルボタンで有効/無効切り替え |
 | ペンパレット ON/OFF | リボンのトグルボタンで有効/無効切り替え |
-| ペンの色選択 | ペン: 7色、蛍光ペン: 5色をリボンから選択 |
-| 太さ・透明度 | 変更なし（既存のままで固定） |
+| ペンプロファイル (3つ) | 独立した3つのペン設定（ペン1/2/3）を個別に色選択可能 |
+| 蛍光ペン設定 (1つ) | 蛍光ペンの色をリボンから選択可能 |
+| パレット同期 | リボンでの設定内容がスライドショー中のパレットに即座に反映される |
 
 ---
 
@@ -23,164 +24,73 @@
 
 | コントロール種別 | ラベル | 動作 |
 |---|---|---|
-| `toggleButton` | ドラッグ移動 | ON: スライドショー開始時にドラッグ機能を起動 / OFF: 起動しない |
-| `toggleButton` | ペンパレット | ON: スライドショー開始時にパレットを表示 / OFF: 表示しない |
+| `toggleButton` | ドラッグ移動 | ON: ドラッグ機能を起動 / OFF: 起動しない |
+| `toggleButton` | ペンパレット | ON: パレットを表示 / OFF: 表示しない |
 
 #### グループ2: ペン設定 (Pen)
 
 | コントロール種別 | ラベル | 動作 |
 |---|---|---|
-| `splitButton` | ペン | メインボタン: 最後に選んだペン色を次回のデフォルト色として再設定（即時保存） / ▼: 色選択メニューを開く |
-| `splitButton` | 蛍光ペン | メインボタン: 最後に選んだ蛍光色を次回のデフォルト色として再設定（即時保存） / ▼: 色選択メニューを開く |
-
-> **注意**: リボンはスライドショー中は非表示になる。ペン色の設定はスライドショー開始前（編集モード時）に行う想定。スライドショー中はフローティングパレット側で操作する。編集モードでは `SetPenMode()` を呼ばない（セクション5-3参照）。
+| `splitButton` | ペン1 | ペン1の色を選択・表示 |
+| `splitButton` | ペン2 | ペン2の色を選択・表示 |
+| `splitButton` | ペン3 | ペン3の色を選択・表示 |
+| `splitButton` | 蛍光ペン | 蛍光ペンの色を選択・表示 |
 
 ---
 
 ## 3. ペン・蛍光ペン の色一覧
 
 ### 3-1. ペン（通常ペン）: 7色
-
-| ラベル | 色名 | HEX | 備考 |
-|---|---|---|---|
-| 黒 | Black | `#111111` | 既存 |
-| 赤 | Red | `#FF3333` | 既存 |
-| 青 | Blue | `#3355FF` | 既存 |
-| 緑 | Green | `#33AA33` | 新規 |
-| 白 | White | `#FFFFFF` | 新規（暗いスライド用） |
-| オレンジ | Orange | `#FF8800` | 新規 |
-| 紫 | Purple | `#9933CC` | 新規 |
+黒、赤、青、緑、白、オレンジ、紫
 
 ### 3-2. 蛍光ペン（ハイライター）: 5色
-
-| ラベル | 色名 | HEX | 備考 |
-|---|---|---|---|
-| 黄 | Yellow | `#FFFF00` | 既存 |
-| 水色 | Cyan | `#00CCFF` | 新規 |
-| 橙 | Orange | `#FF9900` | 新規 |
-| 黄緑 | LightGreen | `#99FF33` | 新規 |
-| ピンク | Pink | `#FF66CC` | 新規 |
-
-> 色・本数は調整可能。実装後に見た目を確認して変更する。
+黄、水色、橙、黄緑、ピンク
 
 ---
 
-## 4. 状態の保存方法
-
-`Properties.Settings`（アプリケーション設定、レジストリに保存）を使用する。
-ファイルごとの設定は不要（グローバル設定のみ）。
+## 4. 状態の保存方法 (`Properties.Settings`)
 
 | 設定キー | 型 | デフォルト | 説明 |
 |---|---|---|---|
 | `DragDropEnabled` | bool | `true` | ドラッグ移動機能のON/OFF |
 | `PenPaletteEnabled` | bool | `true` | ペンパレット表示のON/OFF |
-| `LastPenColor` | string | `"Black"` | 最後に選んだペン色の色名 |
-| `LastMarkerColor` | string | `"Yellow"` | 最後に選んだ蛍光色の色名 |
+| `Pen1Color` | string | `"Black"` | ペン1の色名 |
+| `Pen2Color` | string | `"Red"` | ペン2の色名 |
+| `Pen3Color` | string | `"Blue"` | ペン3の色名 |
+| `Marker1Color` | string | `"Yellow"` | 蛍光ペンの色名 |
 
 ---
 
 ## 5. ふるまいの詳細
 
-### 5-1. ドラッグ移動 トグル
+### 5-1. 同期メカニズム
+- **リボン側**: 色を選択すると即座に `Properties.Settings` に保存され、リボンのアイコンが更新される。
+- **パレット側**: スライドショー開始時に `PenPaletteWindow` がロードされる際、`Properties.Settings` から最新の3色＋1色を読み込み、ボタンの色とテキストを動的に生成する。
+
+### 5-2. フローティングパレットの構成
 
 ```
-スライドショー開始
-  ├─ DragDropEnabled = true  → 既存の処理（OverlayWindow 起動）
-  └─ DragDropEnabled = false → OverlayWindow を起動しない
-```
-
-### 5-2. ペンパレット トグル
-
-```
-スライドショー開始
-  ├─ PenPaletteEnabled = true  → 既存の処理（PenPaletteWindow 表示）
-  └─ PenPaletteEnabled = false → PenPaletteWindow を表示しない
-```
-
-両方 OFF の場合 → スライドショー中は何も起動しない（通常の PowerPoint として動作）。
-
-### 5-3. リボンでペン色を選択したとき
-
-1. 選択した色を `LastPenColor` / `LastMarkerColor` に保存（`Properties.Settings`）
-2. リボンの `splitButton` のメインボタン表示を更新（`ribbon.InvalidateControl`）
-3. `SetPenMode()` は呼ばない（次回スライドショー開始時に反映）
-
-> **理由**: リボンはスライドショー中は通常アクセス不能。即時反映のためにCOMスレッド→WPF Dispatcherを跨ぐとデッドロックリスクが増えるため、安定性を優先する。
-
-### 5-4. フローティングパレットとの関係
-
-現在のパレットレイアウトを**変更なし**で維持する。
-
-```
-[黒ペン]
-[赤ペン]
-[青ペン]
-[黄色マーカー]
+[ペン1 (設定色)]
+[ペン2 (設定色)]
+[ペン3 (設定色)]
+[マーカー (設定色)]
 [消しゴム]
 [カーソル]
 ─────────────
 [◀ 戻る] [次へ ▶]
 ```
 
-| 項目 | 方針 |
-|---|---|
-| パレットの既存ボタン | **変更なし**。スライドショー中の色切り替えは引き続きパレットで行う |
-| リボンで設定した色との同期 | **なし**。リボンはショー前の「デフォルト色設定」、パレットはショー中の「その場での切り替え」 |
-| 将来の拡張 | パレット側のボタンをリボン設定の色に動的に変えるのは次フェーズ |
+---
+
+## 6. 実装済みファイル
+
+- `DragDropRibbon.xml` / `.cs`
+- `ThisAddIn.cs`
+- `PenPaletteWindow.xaml` / `.xaml.cs`
+- `Properties/Settings.settings` / `.Designer.cs`
 
 ---
 
-## 6. 変更対象ファイル
-
-| ファイル | 変更内容 |
-|---|---|
-| `DragDropRibbon.xml` | タブ・グループ・トグルボタン・splitButton を追加 |
-| `DragDropRibbon.cs` | トグルの `getPressed` / `onAction` / `GetPenColor` 等のコールバック追加 |
-| `ThisAddIn.cs` | `SlideShowBegin` で `DragDropEnabled` / `PenPaletteEnabled` を参照するよう修正 |
-| `Properties/Settings.settings` | 上記4設定キーを追加 |
-| `PenPaletteWindow.xaml.cs` | 変更なし（今回スコープ外） |
-
----
-
-## 7. 確定事項
-
-| # | 項目 | 決定内容 |
-|---|---|---|
-| 1 | ペン色の反映タイミング | **次回スライドショー開始時**（安定性優先） |
-| 2 | パレットの既存ボタン | **今回は変更なし**（将来フェーズで動的化を検討） |
-| 3 | 色の数・種類 | **確定**（ペン7色・蛍光ペン5色、セクション3参照） |
-
----
-
-## 8. 色アイコンの実装方針
-
-リボンの色選択メニューに色見本アイコンを表示する。PNG画像ファイルの埋め込みは不要で、C# で動的に生成する。
-
-```csharp
-// getImage コールバック例（tag に色名を渡す）
-public Bitmap GetColorImage(Office.IRibbonControl control)
-{
-    var color = ColorFromName(control.Tag); // "Red" → Color.FromArgb(...)
-    var bmp = new Bitmap(16, 16);
-    using (var g = Graphics.FromImage(bmp))
-        g.FillRectangle(new SolidBrush(color), 0, 0, 16, 16);
-    return bmp;
-}
-```
-
----
-
-## 9. 実装順序（案）
-
-```
-Step 1: Properties.Settings に4つの設定キーを追加
-Step 2: DragDropRibbon.xml にタブ・グループ・トグルボタン2つを追加
-Step 3: DragDropRibbon.cs にトグルのコールバックを実装
-         ※ getPressed は Properties.Settings を直接読む
-           → Ribbon_Load 時に ribbon.Invalidate() を呼ぶことで
-              起動時のトグル状態・splitButton表示が自動復元される
-Step 4: ThisAddIn.cs の SlideShowBegin を修正（ON/OFF 分岐）
-Step 5: DragDropRibbon.xml に splitButton（ペン・蛍光ペン）を追加
-Step 6: DragDropRibbon.cs にペン色コールバック・getImage を実装
-Step 7: 動作確認・色の微調整
-```
+## 7. 履歴
+- v1.0 (2026-04-17): 初版策定
+- v1.1 (2026-04-18): ペンプロファイル（3色独立設定）およびパレット同期の実装を反映
