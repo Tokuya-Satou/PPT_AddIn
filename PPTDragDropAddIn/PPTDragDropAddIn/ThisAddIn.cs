@@ -180,17 +180,17 @@ namespace PPTDragDropAddIn
                 UpdateCoordinateContext(_activeShowWindow, rect);
                 UpdateDragShapeInfos(); // 事前エクスポート・タッチ判定座標・TouchGuard矩形を一括更新
 
-                // タッチガードイベントの登録
-                _overlayWindow.TouchGuardTouched -= OverlayWindow_TouchGuardTouched;
-                _overlayWindow.TouchGuardTouched += OverlayWindow_TouchGuardTouched;
-                _overlayWindow.TouchDragged -= OverlayWindow_TouchDragged;
-                _overlayWindow.TouchDragged += OverlayWindow_TouchDragged;
-                _overlayWindow.TouchDragEnded -= OverlayWindow_TouchDragEnded;
-                _overlayWindow.TouchDragEnded += OverlayWindow_TouchDragEnded;
+                // タッチガードイベントの登録（※タッチでのドラッグにバグがあるため一時無効化）
+                // _overlayWindow.TouchGuardTouched -= OverlayWindow_TouchGuardTouched;
+                // _overlayWindow.TouchGuardTouched += OverlayWindow_TouchGuardTouched;
+                // _overlayWindow.TouchDragged -= OverlayWindow_TouchDragged;
+                // _overlayWindow.TouchDragged += OverlayWindow_TouchDragged;
+                // _overlayWindow.TouchDragEnded -= OverlayWindow_TouchDragEnded;
+                // _overlayWindow.TouchDragEnded += OverlayWindow_TouchDragEnded;
                 // タッチダウン瞬間に IsBlocking を即座に true にするアクションを登録
-                _overlayWindow.ImmediateBlockAction = () => {
-                    if (_gestureBlocker != null) _gestureBlocker.IsBlocking = true;
-                };
+                // _overlayWindow.ImmediateBlockAction = () => {
+                //    if (_gestureBlocker != null) _gestureBlocker.IsBlocking = true;
+                // };
 
                 // Win32 API を使用して物理ピクセル単位で位置合わせ（DPIズレ防止）
                 var helper = new System.Windows.Interop.WindowInteropHelper(_overlayWindow);
@@ -554,7 +554,8 @@ namespace PPTDragDropAddIn
                 Task.Run(() => { try { System.IO.File.Delete(p); } catch { } });
             }
 
-            // TouchGuard オーバーレイを更新（すでに Dispatcher スレッド上なので直接呼べる）
+            // TouchGuard オーバーレイを更新（※タッチでのドラッグにバグがあるため一時無効化）
+            /*
             if (_overlayWindow == null) return;
             var guardRects = new List<System.Windows.Rect>();
             foreach (var info in infos)
@@ -564,6 +565,7 @@ namespace PPTDragDropAddIn
                 guardRects.Add(new System.Windows.Rect(x, y, info.ScreenRect.Width, info.ScreenRect.Height));
             }
             _overlayWindow.UpdateTouchGuardRects(guardRects);
+            */
         }
 
         /// <summary>
