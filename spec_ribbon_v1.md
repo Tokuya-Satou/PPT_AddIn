@@ -30,10 +30,10 @@
 
 | コントロール種別 | ラベル | 動作 |
 |---|---|---|
-| `splitButton` | ペン | メインボタン: 最後に選んだペン色でペンモードを即時適用 / ▼: 色選択メニューを開く |
-| `splitButton` | 蛍光ペン | メインボタン: 最後に選んだ蛍光色で蛍光ペンモードを即時適用 / ▼: 色選択メニューを開く |
+| `splitButton` | ペン | メインボタン: 最後に選んだペン色を次回のデフォルト色として再設定（即時保存） / ▼: 色選択メニューを開く |
+| `splitButton` | 蛍光ペン | メインボタン: 最後に選んだ蛍光色を次回のデフォルト色として再設定（即時保存） / ▼: 色選択メニューを開く |
 
-> **注意**: リボンはスライドショー中は非表示になる。ペン色の設定はスライドショー開始前（編集モード時）に行う想定。スライドショー中はフローティングパレット側で操作する。
+> **注意**: リボンはスライドショー中は非表示になる。ペン色の設定はスライドショー開始前（編集モード時）に行う想定。スライドショー中はフローティングパレット側で操作する。編集モードでは `SetPenMode()` を呼ばない（セクション5-3参照）。
 
 ---
 
@@ -152,14 +152,35 @@
 
 ---
 
-## 8. 実装順序（案）
+## 8. 色アイコンの実装方針
+
+リボンの色選択メニューに色見本アイコンを表示する。PNG画像ファイルの埋め込みは不要で、C# で動的に生成する。
+
+```csharp
+// getImage コールバック例（tag に色名を渡す）
+public Bitmap GetColorImage(Office.IRibbonControl control)
+{
+    var color = ColorFromName(control.Tag); // "Red" → Color.FromArgb(...)
+    var bmp = new Bitmap(16, 16);
+    using (var g = Graphics.FromImage(bmp))
+        g.FillRectangle(new SolidBrush(color), 0, 0, 16, 16);
+    return bmp;
+}
+```
+
+---
+
+## 9. 実装順序（案）
 
 ```
 Step 1: Properties.Settings に4つの設定キーを追加
 Step 2: DragDropRibbon.xml にタブ・グループ・トグルボタン2つを追加
 Step 3: DragDropRibbon.cs にトグルのコールバックを実装
+         ※ getPressed は Properties.Settings を直接読む
+           → Ribbon_Load 時に ribbon.Invalidate() を呼ぶことで
+              起動時のトグル状態・splitButton表示が自動復元される
 Step 4: ThisAddIn.cs の SlideShowBegin を修正（ON/OFF 分岐）
 Step 5: DragDropRibbon.xml に splitButton（ペン・蛍光ペン）を追加
-Step 6: DragDropRibbon.cs にペン色コールバックを実装
+Step 6: DragDropRibbon.cs にペン色コールバック・getImage を実装
 Step 7: 動作確認・色の微調整
 ```
