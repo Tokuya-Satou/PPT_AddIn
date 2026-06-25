@@ -11,6 +11,12 @@ obj/
 
 # ClickOnce 配布ファイル
 app.publish/
+Application Files/
+setup.exe
+*.vsto
+
+# 証明書・署名キー
+*.pfx
 
 # NuGet
 packages/
